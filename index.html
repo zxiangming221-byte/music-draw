@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f5f5f7">
+<title>音乐抽签</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card-bg: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #86868b;
+    --text-tertiary: #aeaeb2;
+    --accent: #0071e3;
+    --accent-light: #409cff;
+    --gold: #ffd60a;
+    --gold-dark: #ff9f0a;
+    --green: #30d158;
+    --red: #ff375f;
+    --purple: #bf5af2;
+    --blue: #64d2ff;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-md: 0 8px 32px rgba(0,0,0,0.08);
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.12);
+    --radius-sm: 12px;
+    --radius-md: 20px;
+    --radius-lg: 28px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .bg-gradient {
+    position: fixed; inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,113,227,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 100%, rgba(191,90,242,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 50% at 20% 50%, rgba(255,214,10,0.03) 0%, transparent 60%),
+      var(--bg);
+    z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 430px; height: 100%;
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .frosted {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    z-index: 10; flex-shrink: 0;
+    min-height: 56px; position: relative;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: var(--text); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .header-btn {
+    background: rgba(0,0,0,0.04);
+    border: none; border-radius: var(--radius-sm);
+    padding: 8px 16px; font-size: 15px; font-weight: 500;
+    color: var(--accent); cursor: pointer;
+    font-family: var(--font); transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .header-btn:active { background: rgba(0,0,0,0.08); transform: scale(0.96); }
+  .header-btn.icon-only { padding: 8px 12px; font-size: 18px; }
+  .back-btn {
+    background: none; border: none; font-size: 16px;
+    color: var(--accent); cursor: pointer; font-family: var(--font);
+    padding: 8px 4px; transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .back-btn:active { opacity: 0.6; }
+
+  /* ── Views ── */
+  .view {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .view.active { opacity: 1; pointer-events: auto; transform: translateX(0); }
+  #main-view { transform: translateX(0); }
+  #collection-view { transform: translateX(40px); }
+  #collection-view.active { transform: translateX(0); }
+  #main-view.inactive { transform: translateX(-30px); }
+
+  .main-content {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 20px; gap: 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  /* ── Card ── */
+  .card-area { position: relative; width: 200px; height: 260px; perspective: 1200px; }
+  .card-stack { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .card-ghost {
+    position: absolute; width: 180px; height: 240px;
+    background: rgba(255,255,255,0.4); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); opacity: 0;
+  }
+  .card-ghost.show { opacity: 1; transform: rotate(-6deg) translateX(-20px); }
+  .card-ghost.show:nth-child(2) { transform: rotate(4deg) translateX(16px); }
+
+  .draw-card {
+    position: relative; z-index: 2;
+    width: 180px; height: 240px; background: var(--card-bg);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.5s ease;
+    cursor: default; overflow: hidden;
+  }
+  .draw-card::after {
+    content: ''; position: absolute; inset: 0;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .draw-card.lifted { transform: translateY(-8px); box-shadow: var(--shadow-lg); }
+
+  /* ── Shimmer sweep ── */
+  @keyframes shimmerSweep {
+    0%   { left: -100%; }
+    100% { left: 200%; }
+  }
+  .shimmer-bar {
+    position: absolute; z-index: 3; top: 0;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg,
+      transparent 0%, rgba(255,255,255,0.25) 40%,
+      rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.25) 60%,
+      transparent 100%);
+    transform: skewX(-20deg);
+    pointer-events: none;
+    animation: shimmerSweep 1.8s ease-in-out infinite;
+  }
+
+  .prompt-char.pop {
+    animation: charPop 0.55s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+  }
+  @keyframes charPop {
+    0%   { opacity: 0; transform: translateY(40px) scale(0.3) rotate(-15deg); }
+    60%  { opacity: 1; transform: translateY(-8px) scale(1.15) rotate(4deg); }
+    80%  { transform: translateY(2px) scale(0.95) rotate(-2deg); }
+    100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+  }
+
+  /* ── Prompt sparkle particles ── */
+  .sparkle {
+    position: absolute; z-index: 20;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .sparkle.fire {
+    animation: sparklePop 0.7s ease-out forwards;
+  }
+  @keyframes sparklePop {
+    0%   { opacity: 0; transform: scale(0) translate(0, 0); }
+    30%  { opacity: 1; transform: scale(1.2) translate(var(--sx), var(--sy)); }
+    100% { opacity: 0; transform: scale(0) translate(var(--ex), var(--ey)); }
+  }
+
+  /* ── Badge micro-bounce ── */
+  .prompt.badge-bounce {
+    animation: badgeBounce 0.45s cubic-bezier(0.22, 1.2, 0.36, 1);
+  }
+  @keyframes badgeBounce {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  .draw-card.revealed {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 3px rgba(0,113,227,0.15), var(--shadow-lg);
+    animation: cardGlow 0.8s ease-out;
+  }
+  .card-icon { font-size: 48px; transition: all 0.3s ease; }
+  .card-text { font-size: 18px; font-weight: 600; color: var(--text); text-align: center; padding: 0 16px; transition: all 0.2s ease; line-height: 1.4; }
+  .card-subtitle { font-size: 13px; color: var(--text-secondary); font-weight: 400; transition: all 0.2s ease; }
+  .already-badge, .new-badge {
+    position: absolute; top: 12px; right: 12px;
+    border-radius: 20px; padding: 4px 10px;
+    font-size: 12px; font-weight: 500;
+    opacity: 0; transform: scale(0.8);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .already-badge { background: rgba(0,0,0,0.06); color: var(--text-secondary); }
+  .already-badge.show { opacity: 1; transform: scale(1); }
+  .new-badge { background: linear-gradient(135deg, var(--green), #28c840); color: white; font-weight: 600; }
+  .new-badge.show { opacity: 1; transform: scale(1); }
+
+  @keyframes cardGlow {
+    0%   { box-shadow: 0 0 0 0 rgba(0,113,227,0.4), var(--shadow-lg); }
+    50%  { box-shadow: 0 0 0 16px rgba(0,113,227,0), var(--shadow-lg); }
+    100% { box-shadow: 0 0 0 0 rgba(0,113,227,0), var(--shadow-md); }
+  }
+
+  /* ── Rainbow reveal on drawn song ── */
+  @keyframes rainbowFlow {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .draw-card.revealed .card-text {
+    font-weight: 800;
+    font-size: 22px;
+    background: linear-gradient(90deg, 
+      #ff0000, #ff8800, #ffdd00, #44dd00, 
+      #00cccc, #4488ff, #aa44ff, #ff0088, #ff0000);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: rainbowFlow 1.8s linear infinite;
+    transition: all 0.3s ease;
+  }
+
+  .prompt {
+    display: inline-block;
+    font-size: 28px; font-weight: 700; text-align: center;
+    margin-top: 8px; opacity: 0; transform: translateY(20px);
+    transition: opacity 0.4s ease;
+    padding: 10px 24px;
+    border-radius: 20px;
+    position: relative;
+    color: transparent;
+  }
+  .prompt::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.5);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .prompt.show { opacity: 1; transform: translateY(0); }
+  .prompt.show::before { opacity: 1; }
+
+  /* ── Staggered character bounce ── */
+  .prompt-char {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(30px) scale(0.5);
+    background: linear-gradient(90deg,
+      #4285F4, #EA4335, #FBBC05, #34A853,
+      #4285F4);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: rainbowShimmer 2.5s linear infinite;
+  }
+  @keyframes rainbowShimmer {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* ── Carousel cards (horizontal right-scroll during draw) ── */
+  .burst-card {
+    position: absolute; z-index: 5;
+    width: 68px; height: 84px;
+    border-radius: 14px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+    color: #fff;
+    text-align: center;
+    padding: 6px 4px;
+    line-height: 1.3;
+    pointer-events: none;
+    will-change: transform, opacity;
+    letter-spacing: -0.2px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+
+  /* ── Ring pulse on reveal ── */
+  .ring-pulse {
+    position: absolute; z-index: 0;
+    inset: -12px;
+    border-radius: 32px;
+    border: 3px solid rgba(0,113,227,0.25);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ring-pulse.fire {
+    animation: ringExpand 1.2s cubic-bezier(0, 0.55, 0.45, 1) forwards;
+  }
+  @keyframes ringExpand {
+    0%   { opacity: 1; transform: scale(0.7); border-color: rgba(0,113,227,0.5); }
+    100% { opacity: 0; transform: scale(1.5); border-color: rgba(0,113,227,0); }
+  }
+
+  .stats {
+    padding: 10px 24px; border-radius: 20px;
+    font-size: 15px; color: var(--text-secondary); font-weight: 500; letter-spacing: -0.2px;
+  }
+  .stats strong { color: var(--text); font-weight: 700; }
+
+  .draw-btn {
+    background: var(--accent); color: white; border: none;
+    border-radius: 16px; padding: 16px 56px; font-size: 19px;
+    font-weight: 600; font-family: var(--font); cursor: pointer;
+    letter-spacing: 0.5px; box-shadow: 0 4px 20px rgba(0,113,227,0.35);
+    transition: all 0.2s ease; -webkit-tap-highlight-color: transparent;
+    position: relative; overflow: hidden;
+  }
+  .draw-btn::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%); pointer-events: none; }
+  .draw-btn:active:not(:disabled) { transform: scale(0.95); box-shadow: 0 2px 12px rgba(0,113,227,0.3); }
+  .draw-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: 0 2px 8px rgba(0,113,227,0.15); }
+  .draw-btn.restart { background: linear-gradient(135deg, var(--purple), var(--accent)); font-size: 15px; padding: 12px 32px; border-radius: 14px; box-shadow: 0 4px 16px rgba(191,90,242,0.3); }
+
+  /* ── Collection ── */
+  .collection-content {
+    flex: 1; overflow-y: auto; padding: 16px 20px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 24px;
+  }
+  .collection-content::-webkit-scrollbar { display: none; }
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-add-btn {
+    font-size: 12px; font-weight: 500; color: var(--accent);
+    background: rgba(0,113,227,0.08); border: none;
+    border-radius: 14px; padding: 6px 14px; cursor: pointer;
+    font-family: var(--font); transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .section-add-btn:active { background: rgba(0,113,227,0.16); transform: scale(0.96); }
+
+  .song-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .song-card {
+    aspect-ratio: 1; background: var(--card-bg);
+    border-radius: var(--radius-md);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    box-shadow: var(--shadow-sm); transition: all 0.3s ease;
+    position: relative; overflow: hidden;
+  }
+  .song-card.collected { background: linear-gradient(145deg, #fff, #f8f8fc); box-shadow: var(--shadow-md); }
+  .song-card.collected::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(0,113,227,0.04) 0%, transparent 50%);
+    border-radius: var(--radius-md);
+  }
+  .song-card.uncollected { opacity: 0.45; filter: grayscale(1); }
+  .song-card .song-icon { font-size: 28px; position: relative; z-index: 1; transition: transform 0.3s ease; }
+  .song-card.collected .song-icon { animation: float 3s ease-in-out infinite; }
+  .song-card .song-name { font-size: 13px; font-weight: 600; color: var(--text); text-align: center; padding: 0 4px; position: relative; z-index: 1; line-height: 1.3; }
+  .song-card.uncollected .song-name { color: var(--text-tertiary); }
+  .song-card .custom-badge {
+    position: absolute; bottom: 6px; z-index: 3;
+    font-size: 9px; font-weight: 600; color: var(--accent);
+    background: rgba(0,113,227,0.08); border-radius: 8px;
+    padding: 2px 8px; letter-spacing: 0.5px;
+  }
+  .song-card .delete-btn {
+    position: absolute; top: 4px; right: 4px; z-index: 3;
+    width: 22px; height: 22px; border-radius: 11px;
+    background: rgba(255,55,95,0.12); border: none;
+    color: var(--red); font-size: 14px; line-height: 22px;
+    cursor: pointer; opacity: 0; transform: scale(0.8);
+    transition: all 0.2s ease; font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .song-card:hover .delete-btn,
+  .song-card:active .delete-btn { opacity: 1; transform: scale(1); }
+  .song-card .delete-btn:active { background: rgba(255,55,95,0.25); }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  /* ── Achievements ── */
+  .achievement-section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: -8px; }
+  .achievement-list { display: flex; flex-direction: column; gap: 10px; }
+  .achievement-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; background: var(--card-bg);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-sm); transition: all 0.3s ease;
+  }
+  .achievement-item.unlocked { background: linear-gradient(135deg, #fffdf0, #fff8e0); box-shadow: 0 4px 20px rgba(255,214,10,0.2); }
+  .achievement-item.locked { opacity: 0.5; filter: grayscale(0.5); }
+  .achievement-item .ach-icon { font-size: 32px; flex-shrink: 0; }
+  .achievement-item .ach-info { display: flex; flex-direction: column; gap: 2px; }
+  .achievement-item .ach-name { font-size: 17px; font-weight: 700; color: var(--text); }
+  .achievement-item .ach-desc { font-size: 13px; color: var(--text-secondary); }
+
+  /* ── Achievement Overlay ── */
+  .achievement-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
+  }
+  .achievement-overlay.show { opacity: 1; pointer-events: auto; }
+  .achievement-overlay .overlay-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .achievement-popup {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    border-radius: var(--radius-lg); padding: 36px 32px 28px; text-align: center;
+    max-width: 300px; width: 85%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.5);
+    transform: translateY(40px) scale(0.9);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .achievement-overlay.show .achievement-popup { transform: translateY(0) scale(1); }
+  .achievement-popup .ach-popup-icon { font-size: 56px; animation: achBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes achBounce {
+    0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+    60%  { transform: scale(1.2) rotate(5deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .achievement-popup .ach-popup-label { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-top: 12px; letter-spacing: 1px; }
+  .achievement-popup .ach-popup-name {
+    font-size: 32px; font-weight: 800; margin-top: 4px; letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--gold-dark), #e8a800);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .achievement-popup .ach-popup-btn {
+    margin-top: 24px; background: var(--accent); color: white; border: none;
+    border-radius: 14px; padding: 12px 40px; font-size: 16px; font-weight: 600;
+    font-family: var(--font); cursor: pointer; transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent; box-shadow: 0 4px 16px rgba(0,113,227,0.3);
+  }
+  .achievement-popup .ach-popup-btn:active { transform: scale(0.95); }
+
+  /* ── Add Song Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 90;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal-overlay .modal-bg {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .modal-card {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    border-radius: var(--radius-lg); padding: 28px 24px 24px;
+    max-width: 320px; width: 88%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.5);
+    transform: translateY(30px) scale(0.94);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
+  .modal-card .modal-title {
+    font-size: 20px; font-weight: 700; color: var(--text);
+    text-align: center; margin-bottom: 4px;
+  }
+  .modal-card .modal-subtitle {
+    font-size: 13px; color: var(--text-secondary);
+    text-align: center; margin-bottom: 20px;
+  }
+  .modal-card .input-group {
+    display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
+  }
+  .modal-card .input-label {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  }
+  .modal-card .text-input {
+    width: 100%; padding: 12px 16px;
+    border: 1.5px solid rgba(0,0,0,0.1);
+    border-radius: var(--radius-sm);
+    font-size: 17px; font-family: var(--font); color: var(--text);
+    background: rgba(0,0,0,0.02);
+    outline: none; transition: border-color 0.2s ease;
+    -webkit-appearance: none;
+  }
+  .modal-card .text-input:focus { border-color: var(--accent); background: white; }
+  .modal-card .text-input::placeholder { color: var(--text-tertiary); }
+  .emoji-picker {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .emoji-option {
+    width: 40px; height: 40px; border-radius: var(--radius-sm);
+    border: 2px solid transparent;
+    background: rgba(0,0,0,0.03);
+    font-size: 22px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .emoji-option:active { transform: scale(0.9); }
+  .emoji-option.selected {
+    border-color: var(--accent);
+    background: rgba(0,113,227,0.08);
+    transform: scale(1.1);
+  }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-actions button {
+    flex: 1; padding: 12px; border: none; border-radius: var(--radius-sm);
+    font-size: 16px; font-weight: 600; font-family: var(--font);
+    cursor: pointer; transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .modal-actions button:active { transform: scale(0.96); }
+  .modal-btn-cancel { background: rgba(0,0,0,0.05); color: var(--text-secondary); }
+  .modal-btn-confirm { background: var(--accent); color: white; box-shadow: 0 4px 16px rgba(0,113,227,0.3); }
+  .modal-btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+  .modal-error { font-size: 12px; color: var(--red); text-align: center; margin-top: 8px; min-height: 18px; }
+
+  /* ── Confetti ── */
+  #confetti-canvas { position: fixed; inset: 0; z-index: 101; pointer-events: none; width: 100%; height: 100%; }
+
+  /* ── Responsive ── */
+  @media (min-width: 430px) {
+    .app { border-left: 1px solid rgba(0,0,0,0.06); border-right: 1px solid rgba(0,0,0,0.06); }
+    .song-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  }
+  @media (hover: hover) {
+    .song-card.collected:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .song-card.collected:hover .delete-btn { opacity: 1; transform: scale(1); }
+  }
+
+  .reset-hint { font-size: 12px; color: var(--text-tertiary); text-align: center; margin-top: 4px; cursor: pointer; transition: color 0.15s; padding: 8px; }
+  .reset-hint:active { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="bg-gradient"></div>
+
+<div class="app">
+
+  <!-- ═══════ MAIN VIEW ═══════ -->
+  <div id="main-view" class="view active">
+    <header class="header frosted">
+      <h1>🎵 音乐抽签</h1>
+      <div class="header-actions">
+        <button class="header-btn icon-only" onclick="openAddSongModal()" title="添加歌曲">＋</button>
+        <button class="header-btn" onclick="showCollection()">图鉴</button>
+      </div>
+    </header>
+    
+    <main class="main-content">
+      <div class="card-area" id="card-area">
+        <div class="card-stack">
+          <div class="card-ghost" id="ghost1"></div>
+          <div class="card-ghost" id="ghost2"></div>
+        </div>
+        <div class="draw-card" id="draw-card">
+          <div class="shimmer-bar" id="shimmer-bar" style="display:none"></div>
+          <span class="card-icon" id="card-icon">🎵</span>
+          <span class="card-text" id="card-text">点击下方按钮</span>
+          <span class="card-subtitle" id="card-subtitle">随机抽取一首歌</span>
+          <span class="already-badge" id="already-badge">已拥有</span>
+          <span class="new-badge" id="new-badge">NEW</span>
+        </div>
+        <div class="ring-pulse" id="ring-pulse"></div>
+      </div>
+      
+      <div class="prompt" id="prompt"></div>
+      
+      <div class="stats frosted" id="stats">
+        <span>已收集 <strong id="count">0</strong>/<strong id="total">11</strong> 首</span>
+      </div>
+      
+      <button class="draw-btn" id="draw-btn" onclick="startDraw()">
+        🎯 抽取
+      </button>
+      
+      <div class="reset-hint" onclick="resetAll()" title="长按重置">重置数据</div>
+    </main>
+  </div>
+
+  <!-- ═══════ COLLECTION VIEW ═══════ -->
+  <div id="collection-view" class="view">
+    <header class="header frosted">
+      <button class="back-btn" onclick="showMain()">← 返回</button>
+      <h1>音乐图鉴</h1>
+      <div style="width:44px"></div>
+    </header>
+    
+    <main class="collection-content">
+      <div class="section-title">🎵 歌曲</div>
+      <div class="song-grid" id="song-grid"></div>
+      <div>
+        <div class="section-title">
+          <span>🏆 称号</span>
+        </div>
+        <div class="achievement-list" id="achievement-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ═══════ ADD SONG MODAL ═══════ -->
+  <div class="modal-overlay" id="add-song-modal">
+    <div class="modal-bg" onclick="closeAddSongModal()"></div>
+    <div class="modal-card">
+      <div class="modal-title">🎵 添加歌曲</div>
+      <div class="modal-subtitle">输入歌名，选择图标</div>
+      <div class="input-group">
+        <label class="input-label">歌曲名称</label>
+        <input class="text-input" id="song-name-input" type="text" placeholder="输入歌名…" maxlength="30" autocomplete="off">
+      </div>
+      <div class="emoji-picker" id="emoji-picker"></div>
+      <div class="modal-actions">
+        <button class="modal-btn-cancel" onclick="closeAddSongModal()">取消</button>
+        <button class="modal-btn-confirm" id="confirm-add-btn" onclick="addCustomSong()" disabled>添加</button>
+      </div>
+      <div class="modal-error" id="modal-error"></div>
+    </div>
+  </div>
+
+  <!-- ═══════ ACHIEVEMENT OVERLAY ═══════ -->
+  <div class="achievement-overlay" id="achievement-overlay">
+    <div class="overlay-bg" onclick="dismissAchievement()"></div>
+    <div class="achievement-popup">
+      <div class="ach-popup-icon">🏆</div>
+      <div class="ach-popup-label">获得称号</div>
+      <div class="ach-popup-name" id="ach-popup-name"></div>
+      <button class="ach-popup-btn" onclick="dismissAchievement()">太棒了！</button>
+    </div>
+  </div>
+
+  <!-- ═══════ CONFETTI CANVAS ═══════ -->
+  <canvas id="confetti-canvas"></canvas>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════
+const DEFAULT_SONGS = [
+  '天气先生', 'Love song', '红豆', '特别的人',
+  '麦恩丽', '听', '迷宫', '读心术',
+  '红尘客栈', '讨厌', '天赋', '哪里都是你'
+];
+const DEFAULT_ICONS = ['🌤️','💕','🫘','💫','🌾','👂','🌀','🔮','🏮','😤','🌟','🎶'];
+
+const ACHIEVEMENTS = [
+  { id: 'lifei',   name: '李飞',   threshold: 4,  icon: '⭐' },
+  { id: 'baolin',  name: '保林',   threshold: 8,  icon: '🌟' },
+  { id: 'yehaihua', name: '叶海华', threshold: -1, icon: '👑' }, // -1 = dynamic = total
+];
+
+const EMOJI_OPTIONS = ['🎵','🎶','🎤','🎸','🎹','🥁','🎧','🎼','💿','📀','🔥','💎','⭐','🌟','✨','💫'];
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+let state = {
+  collectedSongs: [],
+  customSongs: [],
+  achievementsUnlocked: [],
+  achievementsShown: [],
+  isDrawing: false,
+  lastDrawnSong: null,  // 上次抽到的歌名，留在卡片上
+};
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function getAllSongNames() {
+  return DEFAULT_SONGS.concat(state.customSongs.map(s => s.name));
+}
+
+function getTotalSongCount() {
+  return DEFAULT_SONGS.length + state.customSongs.length;
+}
+
+function getIcon(name) {
+  const defIdx = DEFAULT_SONGS.indexOf(name);
+  if (defIdx >= 0) return DEFAULT_ICONS[defIdx];
+  const custom = state.customSongs.find(s => s.name === name);
+  return custom ? custom.icon : '🎵';
+}
+
+function getYeHaiHuaThreshold() {
+  return getTotalSongCount();
+}
+
+function getAchievementThreshold(ach) {
+  if (ach.id === 'yehaihua') return getYeHaiHuaThreshold();
+  return ach.threshold;
+}
+
+// ═══════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════
+function loadState() {
+  try {
+    const raw = localStorage.getItem('music-draw-state');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.collectedSongs = parsed.collectedSongs || [];
+      state.customSongs = parsed.customSongs || [];
+      state.achievementsUnlocked = parsed.achievementsUnlocked || [];
+      state.achievementsShown = parsed.achievementsShown || [];
+      state.lastDrawnSong = parsed.lastDrawnSong || null;
+    }
+  } catch(e) {}
+}
+
+function saveState() {
+  try {
+    localStorage.setItem('music-draw-state', JSON.stringify({
+      collectedSongs: state.collectedSongs,
+      customSongs: state.customSongs,
+      achievementsUnlocked: state.achievementsUnlocked,
+      achievementsShown: state.achievementsShown,
+      lastDrawnSong: state.lastDrawnSong,
+    }));
+  } catch(e) {}
+}
+
+function resetAll() {
+  if (confirm('确定要重置所有数据吗？这将清除收集记录、自定义歌曲和称号。')) {
+    state.collectedSongs = [];
+    state.customSongs = [];
+    state.achievementsUnlocked = [];
+    state.achievementsShown = [];
+    state.lastDrawnSong = null;
+    saveState();
+    updateUI();
+  }
+}
+
+// ═══════════════════════════════════════
+//  UI UPDATES
+// ═══════════════════════════════════════
+function updateUI() {
+  const total = getTotalSongCount();
+  document.getElementById('count').textContent = state.collectedSongs.length;
+  document.getElementById('total').textContent = total;
+  updateCollectionView();
+  updateMainCard();
+}
+
+function updateMainCard() {
+  const count = state.collectedSongs.length;
+  const total = getTotalSongCount();
+  const allCollected = total > 0 && count >= total;
+  const last = state.lastDrawnSong;
+  
+  if (allCollected) {
+    document.getElementById('card-icon').textContent = '👑';
+    document.getElementById('card-text').textContent = '全部集齐！';
+    document.getElementById('card-subtitle').textContent = `已收集 ${count}/${total} 首`;
+  } else if (last) {
+    document.getElementById('card-icon').textContent = getIcon(last);
+    document.getElementById('card-text').textContent = last;
+    document.getElementById('card-subtitle').textContent = '上次抽到';
+  } else {
+    document.getElementById('card-icon').textContent = '🎵';
+    document.getElementById('card-text').textContent = '点击下方按钮';
+    document.getElementById('card-subtitle').textContent = '随机抽取一首歌';
+  }
+  
+  document.getElementById('already-badge').classList.remove('show');
+  document.getElementById('new-badge').classList.remove('show');
+  
+  const btn = document.getElementById('draw-btn');
+  btn.textContent = allCollected ? '🎯 继续抽取' : '🎯 抽取';
+  btn.classList.toggle('restart', allCollected);
+}
+
+function updateCollectionView() {
+  const grid = document.getElementById('song-grid');
+  const allSongs = getAllSongNames();
+  const defaultCount = DEFAULT_SONGS.length;
+  
+  grid.innerHTML = allSongs.map((name, i) => {
+    const collected = state.collectedSongs.includes(name);
+    const isCustom = i >= defaultCount;
+    const icon = getIcon(name);
+    return `
+      <div class="song-card ${collected ? 'collected' : 'uncollected'}">
+        ${isCustom ? `<button class="delete-btn" onclick="event.stopPropagation(); deleteCustomSong('${escapeHtml(name)}')" title="删除">×</button>` : ''}
+        <span class="song-icon">${collected ? icon : '❓'}</span>
+        <span class="song-name">${collected ? name : '???'}</span>
+        ${isCustom ? '<span class="custom-badge">自定义</span>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  const achList = document.getElementById('achievement-list');
+  achList.innerHTML = ACHIEVEMENTS.map(a => {
+    const unlocked = state.achievementsUnlocked.includes(a.id);
+    const threshold = getAchievementThreshold(a);
+    return `
+      <div class="achievement-item ${unlocked ? 'unlocked' : 'locked'}">
+        <span class="ach-icon">${unlocked ? a.icon : '🔒'}</span>
+        <div class="ach-info">
+          <span class="ach-name">${unlocked ? a.name : '???'}</span>
+          <span class="ach-desc">收集 ${threshold} 首歌曲${unlocked ? ' ✓' : ''}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  VIEW SWITCHING
+// ═══════════════════════════════════════
+function showCollection() {
+  updateCollectionView();
+  document.getElementById('main-view').classList.add('inactive');
+  document.getElementById('main-view').classList.remove('active');
+  document.getElementById('collection-view').classList.remove('active');
+  
+  requestAnimationFrame(() => {
+    document.getElementById('collection-view').classList.add('active');
+  });
+}
+
+function showMain() {
+  document.getElementById('collection-view').classList.remove('active');
+  document.getElementById('main-view').classList.remove('inactive');
+  document.getElementById('main-view').classList.add('active');
+  updateUI();
+}
+
+// ═══════════════════════════════════════
+//  CAROUSEL ANIMATION (Google rainbow cards scrolling right)
+// ═══════════════════════════════════════
+function carouselCards(duration) {
+  return new Promise(resolve => {
+    const cardArea = document.getElementById('card-area');
+    const allSongs = getAllSongNames();
+    const count = 8;
+    const cards = [];
+    const cx = 100, cy = 130;
+
+    // Google rainbow palette — vibrant, bold
+    const googleColors = [
+      '#4285F4', '#EA4335', '#FBBC05', '#34A853',
+      '#FF6D01', '#46BDC6', '#4285F4', '#EA4335',
+    ];
+
+    const spacing = 78;
+    const totalWidth = spacing * count;
+
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement('div');
+      el.className = 'burst-card';
+      el.textContent = allSongs[Math.floor(Math.random() * allSongs.length)];
+      el.style.background = googleColors[i];
+      cardArea.appendChild(el);
+
+      cards.push({
+        el,
+        baseX: i * spacing - (totalWidth / 2) + spacing / 2,
+        nameTimer: 0,
+      });
+    }
+
+    let scrollOffset = 0;
+    const start = performance.now();
+
+    function frame(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out: starts fast, gently settles
+      const ease = 1 - Math.pow(1 - progress, 3.5);
+      const speed = (1 - ease) * 7 + 0.25;
+
+      scrollOffset += speed;
+
+      for (const c of cards) {
+        let x = c.baseX + scrollOffset;
+        // Wrap: seamless infinite scroll
+        while (x > totalWidth / 2) x -= totalWidth;
+        while (x < -totalWidth / 2) x += totalWidth;
+
+        const sc = 0.55 + (1 - ease) * 0.45;
+        const opacity = speed > 0.4 ? 1 : speed / 0.4;
+
+        c.el.style.transform =
+          `translate(${cx + x - 34}px, ${cy - 42}px) scale(${sc})`;
+        c.el.style.opacity = Math.min(opacity, 1);
+
+        // Periodically swap song name while moving fast
+        c.nameTimer += 16;
+        if (c.nameTimer > 130 + Math.random() * 150) {
+          c.nameTimer = 0;
+          if (speed > 1.2) {
+            c.el.textContent = allSongs[Math.floor(Math.random() * allSongs.length)];
+          }
+        }
+      }
+
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        // Implode all into center
+        for (const c of cards) {
+          c.el.style.transition = 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
+          c.el.style.transform =
+            `translate(${cx - 34}px, ${cy - 42}px) scale(0)`;
+          c.el.style.opacity = '0';
+        }
+        setTimeout(() => {
+          cards.forEach(c => c.el.remove());
+          resolve();
+        }, 350);
+      }
+    }
+
+    requestAnimationFrame(frame);
+  });
+}
+
+// ═══════════════════════════════════════
+//  DRAW LOGIC
+// ═══════════════════════════════════════
+async function startDraw() {
+  if (state.isDrawing) return;
+  
+  const allSongs = getAllSongNames();
+  if (allSongs.length === 0) {
+    alert('请先添加歌曲！');
+    return;
+  }
+  
+  state.isDrawing = true;
+  
+  const btn = document.getElementById('draw-btn');
+  const card = document.getElementById('draw-card');
+  const prompt = document.getElementById('prompt');
+  const cardIcon = document.getElementById('card-icon');
+  const cardText = document.getElementById('card-text');
+  const cardSub = document.getElementById('card-subtitle');
+  const ghost1 = document.getElementById('ghost1');
+  const ghost2 = document.getElementById('ghost2');
+  const alreadyBadge = document.getElementById('already-badge');
+  const newBadge = document.getElementById('new-badge');
+  
+  btn.disabled = true;
+  prompt.classList.remove('show');
+  prompt.innerHTML = '';
+  alreadyBadge.classList.remove('show');
+  newBadge.classList.remove('show');
+  
+  // Phase 1: Lift card + ghost cards
+  card.classList.add('lifted');
+  ghost1.classList.add('show');
+  ghost2.classList.add('show');
+  cardText.textContent = '';
+  cardSub.textContent = '抽取中...';
+  cardIcon.textContent = '✨';
+  
+  await sleep(400);
+  
+  // Phase 2: Spring-physics 3D spin right with Google rainbow
+  const resultSong = allSongs[Math.floor(Math.random() * allSongs.length)];
+  const shimmer = document.getElementById('shimmer-bar');
+  const googleColors = ['#4285F4','#EA4335','#FBBC05','#34A853','#FF6D01','#46BDC6'];
+
+  shimmer.style.display = '';
+  cardText.style.color = '#fff';
+  cardText.style.textShadow = '0 2px 8px rgba(0,0,0,0.3)';
+  cardIcon.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+
+  // Spring-physics rotation: exponential friction, natural deceleration
+  let angle = 0, angularVel = 15;
+  let lastTime = performance.now(), lastHalf = 0, colorIdx = 0;
+
+  await new Promise(resolve => {
+    function spinFrame(now) {
+      const dt = Math.min(now - lastTime, 50) / 16;
+      lastTime = now;
+      angularVel *= 0.984; // friction
+      angle += angularVel * dt;
+      card.style.transform = `translateY(-8px) rotateY(${angle}deg)`;
+
+      const curHalf = Math.floor(angle / 180);
+      if (curHalf !== lastHalf) {
+        lastHalf = curHalf;
+        colorIdx = (colorIdx + 1) % googleColors.length;
+        card.style.background = googleColors[colorIdx];
+        cardText.textContent = allSongs[Math.floor(Math.random() * allSongs.length)];
+        cardIcon.textContent = getIcon(cardText.textContent);
+      }
+
+      if (angularVel > 0.35) {
+        requestAnimationFrame(spinFrame);
+      } else {
+        // Spring-settle to nearest full rotation
+        const target = Math.round(angle / 360) * 360;
+        (function settle() {
+          const f = (target - angle) * 0.1;
+          angularVel = (angularVel + f) * 0.72;
+          angle += angularVel;
+          card.style.transform = `translateY(-8px) rotateY(${angle}deg)`;
+          if (Math.abs(angularVel) > 0.015 || Math.abs(target - angle) > 0.08) {
+            requestAnimationFrame(settle);
+          } else {
+            card.style.transform = `translateY(-8px) rotateY(${target}deg)`;
+            resolve();
+          }
+        })();
+      }
+    }
+    requestAnimationFrame(spinFrame);
+  });
+
+  // Clean up spin styles
+  shimmer.style.display = 'none';
+  card.style.background = '';
+  cardText.style.color = '';
+  cardText.style.textShadow = '';
+  cardIcon.style.filter = '';
+
+  // Phase 3: Reveal — ring pulse, rainbow text
+  cardText.textContent = resultSong;
+  cardIcon.textContent = getIcon(resultSong);
+  state.lastDrawnSong = resultSong;
+  card.classList.remove('lifted');
+  card.classList.add('revealed');
+  ghost1.classList.remove('show');
+  ghost2.classList.remove('show');
+  
+  // Trigger ring pulse
+  const ring = document.getElementById('ring-pulse');
+  ring.classList.remove('fire');
+  void ring.offsetWidth;
+  ring.classList.add('fire');
+  
+  const isNew = !state.collectedSongs.includes(resultSong);
+  
+  if (isNew) {
+    state.collectedSongs.push(resultSong);
+    newBadge.classList.add('show');
+    cardSub.textContent = '新发现！';
+  } else {
+    alreadyBadge.classList.add('show');
+    cardSub.textContent = '已拥有';
+  }
+  
+  saveState();
+  updateUI();
+  
+  // 歌名停留 3 秒
+  await sleep(3000);
+  
+  // Phase 4: Spring-leap typography + sparkle burst
+  prompt.innerHTML = '';
+  prompt.classList.add('show');
+  const chars = '你来唱！'.split('');
+  chars.forEach((ch, i) => {
+    const span = document.createElement('span');
+    span.className = 'prompt-char';
+    span.textContent = ch;
+    span.style.animationDelay = (i * 60) + 'ms';
+    prompt.appendChild(span);
+    requestAnimationFrame(() => span.classList.add('pop'));
+  });
+
+  // Wait for last character to finish spring + settle
+  const charTotal = chars.length * 60 + 550;
+  await sleep(charTotal - 100);
+
+  // Sparkle burst — tiny glowing dots around the prompt
+  spawnSparkles(prompt, 14);
+
+  // Badge micro-bounce
+  prompt.classList.add('badge-bounce');
+  setTimeout(() => prompt.classList.remove('badge-bounce'), 450);
+
+  await sleep(400);
+  
+  // Phase 5: Check achievements
+  const newlyUnlocked = checkAchievements();
+  
+  if (newlyUnlocked.length > 0) {
+    const best = newlyUnlocked[newlyUnlocked.length - 1];
+    await sleep(300);
+    showAchievementOverlay(best);
+  }
+  
+  if (newlyUnlocked.length === 0) {
+    await sleep(1500);
+    resetCard();
+  }
+  
+  state.isDrawing = false;
+  btn.disabled = false;
+}
+
+function resetCard() {
+  const card = document.getElementById('draw-card');
+  const prompt = document.getElementById('prompt');
+  const alreadyBadge = document.getElementById('already-badge');
+  const newBadge = document.getElementById('new-badge');
+  
+  card.classList.remove('revealed');
+  alreadyBadge.classList.remove('show');
+  newBadge.classList.remove('show');
+  // prompt stays visible until next draw
+  updateMainCard();
+}
+
+// ═══════════════════════════════════════
+//  ACHIEVEMENTS
+// ═══════════════════════════════════════
+function checkAchievements() {
+  const newlyUnlocked = [];
+  const total = getTotalSongCount();
+  
+  for (const ach of ACHIEVEMENTS) {
+    const threshold = ach.id === 'yehaihua' ? total : ach.threshold;
+    // Skip 叶海华 if total is 0 or threshold < 1 (no songs)
+    if (ach.id === 'yehaihua' && total < 1) continue;
+    // Don't re-unlock if already got it
+    if (state.collectedSongs.length >= threshold && 
+        !state.achievementsUnlocked.includes(ach.id)) {
+      state.achievementsUnlocked.push(ach.id);
+      newlyUnlocked.push(ach);
+    }
+  }
+  
+  if (newlyUnlocked.length > 0) saveState();
+  return newlyUnlocked;
+}
+
+function showAchievementOverlay(achievement) {
+  if (state.achievementsShown.includes(achievement.id)) return;
+  
+  state.achievementsShown.push(achievement.id);
+  saveState();
+  
+  const overlay = document.getElementById('achievement-overlay');
+  const nameEl = document.getElementById('ach-popup-name');
+  
+  nameEl.textContent = achievement.name;
+  overlay.classList.add('show');
+  
+  confettiBurst();
+  
+  window._achTimer = setTimeout(() => dismissAchievement(), 5000);
+}
+
+function dismissAchievement() {
+  clearTimeout(window._achTimer);
+  document.getElementById('achievement-overlay').classList.remove('show');
+  resetCard();
+}
+
+// ═══════════════════════════════════════
+//  ADD / DELETE CUSTOM SONG
+// ═══════════════════════════════════════
+let _selectedEmoji = '🎵';
+
+function openAddSongModal() {
+  _selectedEmoji = '🎵';
+  document.getElementById('song-name-input').value = '';
+  document.getElementById('confirm-add-btn').disabled = true;
+  document.getElementById('modal-error').textContent = '';
+  renderEmojiPicker();
+  document.getElementById('add-song-modal').classList.add('show');
+  setTimeout(() => document.getElementById('song-name-input').focus(), 300);
+}
+
+function closeAddSongModal() {
+  document.getElementById('add-song-modal').classList.remove('show');
+}
+
+function renderEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  picker.innerHTML = EMOJI_OPTIONS.map(e => 
+    `<button class="emoji-option${e === _selectedEmoji ? ' selected' : ''}" onclick="selectEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+
+function selectEmoji(emoji) {
+  _selectedEmoji = emoji;
+  renderEmojiPicker();
+}
+
+function addCustomSong() {
+  const input = document.getElementById('song-name-input');
+  const errorEl = document.getElementById('modal-error');
+  const name = input.value.trim();
+  
+  if (!name) {
+    errorEl.textContent = '请输入歌曲名称';
+    return;
+  }
+  
+  const allNames = getAllSongNames();
+  if (allNames.includes(name)) {
+    errorEl.textContent = '这首歌已经存在了';
+    return;
+  }
+  
+  state.customSongs.push({ name, icon: _selectedEmoji });
+  state.collectedSongs = state.collectedSongs.filter(s => allNames.includes(s));
+  
+  // If 叶海华 was previously unlocked but now total changed, may need re-check
+  saveState();
+  updateUI();
+  closeAddSongModal();
+}
+
+function deleteCustomSong(name) {
+  if (!confirm(`确定删除「${name}」吗？`)) return;
+  
+  state.customSongs = state.customSongs.filter(s => s.name !== name);
+  state.collectedSongs = state.collectedSongs.filter(s => s !== name);
+  
+  // Re-evaluate achievements (叶海华 may have changed)
+  const total = getTotalSongCount();
+  if (state.collectedSongs.length < total && state.achievementsUnlocked.includes('yehaihua')) {
+    // Keep it unlocked — once earned, keep it
+  }
+  
+  saveState();
+  updateUI();
+  
+  if (document.getElementById('collection-view').classList.contains('active')) {
+    updateCollectionView();
+  }
+}
+
+// ═══════════════════════════════════════
+//  INPUT WATCH (enable/disable add btn)
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('song-name-input');
+  const btn = document.getElementById('confirm-add-btn');
+  input.addEventListener('input', () => {
+    btn.disabled = input.value.trim().length === 0;
+  });
+});
+
+// ═══════════════════════════════════════
+//  CONFETTI
+// ═══════════════════════════════════════
+const confettiColors = [
+  '#ffd60a', '#ff9f0a', '#ff375f', '#30d158',
+  '#64d2ff', '#0071e3', '#bf5af2', '#ff6b6b',
+  '#ffd93d', '#6bcb77', '#4d96ff',
+];
+
+let confettiParticles = [];
+let confettiAnimating = false;
+
+function confettiBurst() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  
+  for (let i = 0; i < 120; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 4 + Math.random() * 14;
+    confettiParticles.push({
+      x: cx, y: cy - 40,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 4,
+      color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+      size: 5 + Math.random() * 9,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 12,
+      life: 1, decay: 0.008 + Math.random() * 0.018,
+      gravity: 0.12 + Math.random() * 0.08,
+    });
+  }
+  
+  if (!confettiAnimating) confettiAnimate();
+}
+
+function confettiAnimate() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  
+  confettiAnimating = true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  confettiParticles = confettiParticles.filter(p => p.life > 0);
+  
+  for (const p of confettiParticles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.vx *= 0.995;
+    p.rotation += p.rotSpeed;
+    p.life -= p.decay;
+    
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rotation * Math.PI / 180);
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    const hw = p.size / 2;
+    ctx.fillRect(-hw, -hw * 0.4, p.size, p.size * 0.6);
+    ctx.restore();
+  }
+  
+  if (confettiParticles.length > 0) {
+    requestAnimationFrame(confettiAnimate);
+  } else {
+    confettiAnimating = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// ═══════════════════════════════════════
+//  SPARKLE BURST (tiny twinkling dots)
+// ═══════════════════════════════════════
+function spawnSparkles(targetEl, count) {
+  const rect = targetEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const colors = ['#FFD700','#FFA500','#fff','#64D2FF','#BF5AF2','#30D158'];
+
+  for (let i = 0; i < count; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'sparkle';
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 20 + Math.random() * 50;
+    dot.style.cssText = `
+      left: ${cx}px; top: ${cy}px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      --sx: ${Math.cos(angle) * dist * 0.3}px;
+      --sy: ${Math.sin(angle) * dist * 0.3 - 10}px;
+      --ex: ${Math.cos(angle) * dist}px;
+      --ey: ${Math.sin(angle) * dist - 25}px;
+      animation-delay: ${Math.random() * 0.15}s;
+      width: ${3 + Math.random() * 5}px;
+      height: ${3 + Math.random() * 5}px;
+    `;
+    document.body.appendChild(dot);
+    requestAnimationFrame(() => dot.classList.add('fire'));
+    setTimeout(() => dot.remove(), 850);
+  }
+}
+
+// ═══════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// ═══════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════
+loadState();
+updateUI();
+updateCollectionView();
+
+window.addEventListener('resize', () => {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
